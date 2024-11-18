@@ -12,13 +12,13 @@ from fastapi.responses import StreamingResponse
 import asyncio
 from langchain_core.messages import AIMessageChunk, HumanMessage
 
-#logging.basicConfig(
-    # level=#logging.INFO,  # Change this to DEBUG for more detailed #logging
-    # format='%(asctime)s - %(levelname)s - %(message)s',
-    # handlers=[
-        #logging.StreamHandler()
-    # ]
-# )
+logging.basicConfig(
+    level=logging.INFO,  # Change this to DEBUG for more detailed #logging
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 
 app = FastAPI()
 
