@@ -18,20 +18,21 @@ from azure.storage.blob import BlobClient, BlobServiceClient
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
-AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
+# AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
 
 
-credential = AzureCliCredential()
-storage_client = StorageManagementClient(credential,AZURE_SUBSCRIPTION_ID)
+# credential = AzureCliCredential()
+# storage_client = StorageManagementClient(credential,AZURE_SUBSCRIPTION_ID)
 
 
 STORAGE_ACCOUNT_BASE = 'molinablobstorage'
 
 container_name = 'molina-bob-container'
 
-blob_service_client = BlobServiceClient(
-    account_url = "https://molinablobstorage.blob.core.windows.net/",
-    credential = credential
+blob_service_client = BlobServiceClient.from_connection_string(
+    conn_str = os.getenv("CONN_STR_MOLINA")
+    # account_url = "https://molinablobstorage.blob.core.windows.net/",
+    # credential = credential
 )
 
 container_client = blob_service_client.get_container_client(container=container_name)
