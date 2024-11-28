@@ -60,7 +60,7 @@ def create_agent(file_path: str, query: str) -> str:
         with open(new_file_path, "r", encoding="utf-8") as f:
             data = yaml.load(f, Loader=yaml.FullLoader)
     except Exception as e:
-        return "Error in Create Agent"
+        return "Error in file loading Create Agent"
 
     try:
         json_spec = JsonSpec(dict_=data, max_value_length=4000)
@@ -78,7 +78,7 @@ def create_agent(file_path: str, query: str) -> str:
             }
         )
     except Exception as e:
-        return "Error in Create Agent"
+        return "Error in creating jsong agent Create Agent"
 
     try: 
 
