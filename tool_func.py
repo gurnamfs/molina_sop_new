@@ -114,7 +114,7 @@ def get_file_path(text: str) -> str:
     """
 
     res = chain.invoke({"text": text})
-    file_path = res['file_path']"
+    file_path = res['file_path']
     query = res['query']
 
     return file_path, query
