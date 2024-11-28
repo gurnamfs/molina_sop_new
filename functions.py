@@ -5,7 +5,37 @@ from langchain_community.agent_toolkits import JsonToolkit, create_json_agent
 from langchain_community.tools.json.tool import JsonSpec
 from prompts import prefix, suffix, return_system_prompt
 from dotenv import load_dotenv
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import PromptTemplate
+from pydantic import BaseModel, Field
 import logging
+
+from azure.identity import AzureCliCredential
+from azure.mgmt.storage import StorageManagementClient
+
+from azure.storage.blob import BlobClient, BlobServiceClient
+
+load_dotenv()
+
+API_KEY = os.getenv("API_KEY")
+AZURE_SUBSCRIPTION_ID = os.getenv("AZURE_SUBSCRIPTION_ID")
+
+
+credential = AzureCliCredential()
+storage_client = StorageManagementClient(credential,AZURE_SUBSCRIPTION_ID)
+
+
+STORAGE_ACCOUNT_BASE = 'molinablobstorage'
+
+container_name = 'molina-bob-container'
+
+blob_service_client = BlobServiceClient(
+    account_url = "https://molinablobstorage.blob.core.windows.net/",
+    credential = credential
+)
+
+container_client = blob_service_client.get_container_client(container=container_name)
+
 
 logging.basicConfig(
     level=logging.INFO,  # You can change this to DEBUG or ERROR as needed
@@ -17,9 +47,17 @@ logging.basicConfig(
 
 
 
-load_dotenv()
+def azure_file_path(file_path):
+    download_blob_client = blob_service_client.get_blob_client(
+    container = container_name,
+    blob = file_path
+    )
+    with open(file_path, "wb") as data:
+        download_stream = download_blob_client.download_blob()
+        data.write(download_stream.readall())
 
-API_KEY = os.getenv("API_KEY")
+    return file_path
+
 
 
 llm = AzureChatOpenAI(
@@ -30,6 +68,30 @@ llm = AzureChatOpenAI(
     temperature=0,
     max_tokens=None,
 )
+
+model = AzureChatOpenAI(
+    azure_endpoint="https://firstsenseai.openai.azure.com",
+    azure_deployment="gpt432k",
+    api_version="2024-05-01-preview",
+    api_key=API_KEY,
+    temperature=0,
+    max_tokens=None,
+)
+
+class Format(BaseModel):
+    file_path: str = Field(description="file_path in the text")
+    query: str = Field(description="Exact process step to perform on the .json")
+
+parser = JsonOutputParser(pydantic_object=Format)
+
+prompt = PromptTemplate(
+    template="Format the given text.\n{format_instructions}\n{text}\n",
+    input_variables=["text"],
+    partial_variables={"format_instructions": parser.get_format_instructions()},
+)
+
+chain = prompt | llm | parser
+
 
 
 def initial_checks(claim):
@@ -47,10 +109,10 @@ def initial_checks(claim):
     try:
         prompt = return_system_prompt + f"""`Claim`: {claim}"""
         
-        res = llm.invoke(prompt).content
+        res = llm.invoke(prompt)
         logging.info(f"Initial Checks response for claim: {res}")
         
-        return res
+        return res.content
     except Exception as e:
         logging.error(f"Error initial check: {e}")
         return "Function Initial Checks Failed"
@@ -69,7 +131,8 @@ def final(claim):
     logging.info("###Timely Filing Tool###")
 
     try:
-        with open("json-files/Timely Filing Requirements by State Job Aid.json") as f:
+        new_file_path = azure_file_path("Timely Filing Requirements by State Job Aid.json")
+        with open(new_file_path) as f:
             data = yaml.load(f, Loader=yaml.FullLoader)
             logging.debug(f"Loaded data from JSON file Successfully")
         json_spec = JsonSpec(dict_=data, max_value_length=4000)
@@ -79,17 +142,30 @@ def final(claim):
             handle_parsing_errors=True,
             prefix=prefix,
             suffix=suffix,
-            llm=llm,
+            llm=model,
             toolkit=json_toolkit,
-            verbose=False,
+            verbose=True,
+            agent_kwargs = {
+                'handle_parsing_errors' : True
+
+            }
         )
 
         response = json_agent_executor.invoke(
-            "Process the state mentioned for timely filing of claims: " + claim
+            "Extract only the information related to timely filing for the specified State:\n" + claim
         )
         logging.info(f"Received Timely Filing response")
+        os.remove(new_file_path)
 
         return response
     except Exception as e:
         logging.error(f"Error Timely Filing: {e}")
         return "Error in Timely Filing"
+
+
+
+def summary(navigation_steps):
+    prompt = f"""Your task is to return a consolidated Final Answer by combining all the Final Answers or Observations (If No Final Answer) in a readable format. Ensure no additional information is added.
+    {navigation_steps}"""
+    res = model.invoke(prompt)
+    return res.content

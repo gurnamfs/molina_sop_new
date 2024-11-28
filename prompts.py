@@ -25,22 +25,20 @@ suffix = """Begin!"\n\nQuestion: {input}\nThought: I should look at the keys tha
 in data to see what I have access to\n{agent_scratchpad}"""
 
 
-sys = """You are a helpful assistant. Let's assume the first query you get is called {original_claim}, and the all the query after the first conversation will be referred to as {claim}.
+sys = """You are a smart Supervisor.
 
 Key Rules:
-If the original_claim / claim contains a file_path and a query, you should suggest using the `create_agent` tool with both parameters. For example:
+If the text contains a file_path and a query, you should suggest using the `create_agent` tool with both parameters. For example:
 "Use the `create_agent` tool with file_path <file_path> and query <claim>."
 
-If the claim contains only a file_path, check the previous conversation for the related query. Once you identify it, instruct the agent to use the `create_agent` tool with both the file_path and the corresponding query. For example:
+If the text contains only a file_path, check the last conversation for the related query. Once you identify it, instruct the agent to use the `create_agent` tool with both the file_path and the corresponding query. For example:
 "Use the `create_agent` tool with file_path <file_path> and query <claim>."
 
-If the claim contains reference to a .json file (e.g.,"Refer to the ...(.json)"), the next step should be to extract the file_path using the `get_file_name` tool. For example:
+If the text contains reference to a .json file (e.g.,"Refer to the ...(.json)"), the next step should be to extract the file_path using the `get_file_name` tool. For example:
 "Use the `get_file_name` tool with the query <claim> to retrieve the file_path."
+"""
 
-Important Note:
-Always pass original_claim along with the claim (concatenated as a single param) to the `create_agent` tool."""
-
-return_system_prompt = """Identify the State, whether an EOB is submitted, Edit Number is present, external enrollment is primary or secondary and Place of Service (POS). Follow these instructions carefully:
+return_system_prompt = """Identify the State, whether an EOB is submitted, Line Number 0 is present, external enrollment is primary or secondary and Place of Service (POS). Follow these instructions carefully:
 Steps to Evaluate Claim:
      
 Identify the State:
@@ -50,15 +48,13 @@ Identify EOB Submission:
 Goal: Confirm whether an EOB is submitted.
 Conditions: 
 An EOB is "submitted" if ANY of these fields have values greater than 0:
-Total Allowed
 Total Paid Amount
 Total Deduct
 Total Copay
 Total Coinsurance
 
 Identify Edit Numbers:
-Goal: Detect the presence of any Edit Number.
-Conditions: Any Edit Numbers besides 253 indicate an Edit Number is present.
+Goal: Detect the presence of Line Number 0 in the claim.
 
 Determine Primary or Secondary Enrollment Status:
 Goal: Verify if the external enrollment is primary or secondary, and determine Molina’s payer position.
@@ -79,25 +75,19 @@ Provide only the answer, without any explanation.
 
 
 Sample Output:
-"<State>, External Enrollment Secondary, EOB Submitted, Edit Number Present Place of Service (POS) <Number>"
+"<State>, External Enrollment Secondary, EOB Submitted, Line Number 0 Present Place of Service (POS) <Number>"
 
-Note: If the Edit Number is not present, do not mention it in the answer.
+Note: If the Line Number 0 is not present, do not mention it in the answer. For the <State> and <Number> replace it with actual data from the Claim.
 
 """
 
-system_message = """You are an agent designed to extract relevant information from documents based on queries. Your goal is to analyze the data and return the most pertinent information related to the query. 
+system_message = """You are an experienced supervisor. You complete any task assigned to you without needing to ask for further clarification.
 
-You have access to the following tools:
+###Task Assigned:
+- Always Start by using the 'create_agent' tool.
+- ONLY use 'get_file_path' tool when you get `.json` in the answer from the 'create_agent' tool.
+- Always Use 'create_agent' tool after invoking 'get_file_path' tool.
 
-1. guide: Determines which tool should be used along with the appropriate parameters to be passed.
-2. create_agent: Initiates an agent with a specified file path and query to extract relevant document details.
-3. get_file_path: Retrieves file path when references to other documents are found.
-
-###Process Overview:
-- Start by using the `guide` tool.
-- Always Use `guide` tool after invoking `create_agent` tool.
-- Always Use `guide` tool after invoking `get_file_path` tool.
-
-###Important Note:
-- The response provided by the `guide` tool is the only set of instructions you need to follow and implement.
+###Note:
+- Only Provide the answer, without any explanation.
 """
